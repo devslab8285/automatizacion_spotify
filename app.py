@@ -2,12 +2,14 @@ import os
 import re
 from typing import Iterable, List
 
+import spotipy
 import streamlit as st
+from spotipy.oauth2 import SpotifyOAuth
 
 from main import (
+    SCOPE,
     add_tracks_from_queries,
     build_ai_playlist_name,
-    build_client,
     build_fallback_playlist_name,
     dedupe_queries,
     generate_tracks_with_openai,
@@ -16,7 +18,7 @@ from main import (
 )
 
 
-st.set_page_config(page_title="Spotify AI Agent", page_icon="🎧", layout="centered")
+st.set_page_config(page_title="Spotify AI Agent", layout="centered")
 st.title("Spotify AI Agent")
 st.caption("Crea playlists en Spotify desde un prompt, un archivo o una lista pegada.")
 
@@ -53,10 +55,75 @@ def get_default_count() -> int:
     return 50
 
 
+def get_secret(name: str) -> str:
+    if name in st.secrets:
+        return str(st.secrets[name]).strip()
+    value = os.getenv(name, "").strip()
+    if not value:
+        st.error(f"Falta la variable {name} en Secrets o en el entorno.")
+        st.stop()
+    return value
+
+
+def clear_query_params() -> None:
+    try:
+        st.query_params.clear()
+    except Exception:
+        try:
+            st.experimental_set_query_params()
+        except Exception:
+            pass
+
+
+def get_spotify_client() -> spotipy.Spotify:
+    client_id = get_secret("SPOTIFY_CLIENT_ID")
+    client_secret = get_secret("SPOTIFY_CLIENT_SECRET")
+    redirect_uri = get_secret("SPOTIFY_REDIRECT_URI")
+
+    auth_manager = SpotifyOAuth(
+        client_id=client_id,
+        client_secret=client_secret,
+        redirect_uri=redirect_uri,
+        scope=SCOPE,
+        cache_handler=None,
+        open_browser=False,
+    )
+
+    token_info = st.session_state.get("token_info")
+    code = st.query_params.get("code")
+
+    if code:
+        try:
+            token_info = auth_manager.get_access_token(code, as_dict=True)
+        except Exception as exc:
+            st.error(f"No se pudo completar el login con Spotify: {exc}")
+            st.stop()
+        st.session_state["token_info"] = token_info
+        clear_query_params()
+        st.rerun()
+
+    if not token_info:
+        auth_url = auth_manager.get_authorize_url()
+        st.info("Necesitas iniciar sesion con Spotify para continuar.")
+        st.link_button("Login con Spotify", auth_url)
+        st.stop()
+
+    if auth_manager.is_token_expired(token_info):
+        try:
+            token_info = auth_manager.refresh_access_token(token_info["refresh_token"])
+        except Exception as exc:
+            st.error(f"No se pudo refrescar el token: {exc}")
+            st.session_state.pop("token_info", None)
+            st.stop()
+        st.session_state["token_info"] = token_info
+
+    return spotipy.Spotify(auth=token_info["access_token"])
+
+
 with st.sidebar:
-    st.subheader("Modo de generación")
+    st.subheader("Modo de generacion")
     source = st.radio(
-        "¿Cómo quieres crear la lista?",
+        "Como quieres crear la lista?",
         [
             "Prompt (OpenAI)",
             "Pegar lista",
@@ -65,13 +132,13 @@ with st.sidebar:
         ],
     )
     track_count = st.number_input(
-        "Número de canciones",
+        "Numero de canciones",
         min_value=1,
         max_value=200,
         value=get_default_count(),
         step=1,
     )
-    st.caption("Si OpenAI falla, usamos songs.txt automáticamente.")
+    st.caption("Si OpenAI falla, usamos songs.txt automaticamente.")
 
 
 prompt = ""
@@ -86,13 +153,13 @@ if source == "Prompt (OpenAI)":
     st.caption("Necesita saldo en OpenAI. Si falla, usamos songs.txt.")
 elif source == "Pegar lista":
     raw_text = st.text_area(
-        "Pega aquí tu lista (formato Artista - Canción)",
+        "Pega aqui tu lista (formato Artista - Cancion)",
         height=220,
         placeholder="1. Queen - Radio Ga Ga\n2. The Police - Every Breath You Take",
     )
 elif source == "Cargar archivo":
     uploaded = st.file_uploader(
-        "Sube un archivo .txt o .csv con líneas 'Artista - Canción'",
+        "Sube un archivo .txt o .csv con lineas 'Artista - Cancion'",
         type=["txt", "csv"],
     )
     if uploaded:
@@ -107,7 +174,7 @@ def build_queries() -> List[str]:
         try:
             return generate_tracks_with_openai(prompt, track_count)
         except Exception as exc:
-            st.warning(f"OpenAI falló: {exc}. Usando songs.txt.")
+            st.warning(f"OpenAI fallo: {exc}. Usando songs.txt.")
             return load_fallback_songs()
     if source == "Pegar lista":
         return clean_tracks(_split_lines(raw_text))
@@ -126,7 +193,7 @@ def build_queries() -> List[str]:
 if st.button("Crear playlist en Spotify", type="primary"):
     with st.spinner("Conectando con Spotify..."):
         try:
-            spotify = build_client()
+            spotify = get_spotify_client()
             user = spotify.current_user()
         except Exception as exc:
             st.error(f"No se pudo conectar con Spotify: {exc}")
@@ -135,7 +202,7 @@ if st.button("Crear playlist en Spotify", type="primary"):
     queries = build_queries()
     queries = dedupe_queries(queries)[:track_count]
     if not queries:
-        st.error("No hay canciones válidas para procesar.")
+        st.error("No hay canciones validas para procesar.")
         st.stop()
 
     with st.expander(f"Lista final ({len(queries)} canciones)"):
@@ -184,7 +251,7 @@ if st.button("Crear playlist en Spotify", type="primary"):
     st.write(f"Usuario: {user.get('display_name') or user.get('id')}")
     st.write(f"Encontradas en Spotify: {len(results['found'])}")
     st.write(f"No encontradas: {len(results['not_found'])}")
-    st.write(f"Añadidas: {len(results['added'])}")
+    st.write(f"Anadidas: {len(results['added'])}")
 
     if results["not_found"]:
         with st.expander("Canciones no encontradas"):
