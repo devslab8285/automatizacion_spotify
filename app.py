@@ -142,6 +142,7 @@ with st.sidebar:
             "Pegar lista",
             "Cargar archivo",
         ],
+        key="source",
     )
     track_count = st.number_input(
         "Numero de canciones",
@@ -149,6 +150,7 @@ with st.sidebar:
         max_value=200,
         value=get_default_count(),
         step=1,
+        key="track_count",
     )
     st.caption("Si OpenAI falla, usamos songs.txt automaticamente.")
 
@@ -161,6 +163,7 @@ if source == "Prompt (OpenAI)":
     prompt = st.text_input(
         "Describe tu playlist",
         placeholder="Ej: synthwave para conducir de noche",
+        key="prompt",
     )
     st.caption("Necesita saldo en OpenAI. Si falla, usamos songs.txt.")
 elif source == "Pegar lista":
@@ -168,11 +171,13 @@ elif source == "Pegar lista":
         "Pega aqui tu lista (formato Artista - Cancion)",
         height=220,
         placeholder="1. Queen - Radio Ga Ga\n2. The Police - Every Breath You Take",
+        key="raw_text",
     )
 elif source == "Cargar archivo":
     uploaded = st.file_uploader(
         "Sube un archivo .txt o .csv con lineas 'Artista - Cancion'",
         type=["txt", "csv"],
+        key="uploaded_file",
     )
     if uploaded:
         uploaded_bytes = uploaded.getvalue()
@@ -202,7 +207,7 @@ def build_queries() -> List[str]:
     return load_fallback_songs()
 
 
-if st.button("Crear playlist en Spotify", type="primary"):
+def run_create_playlist() -> None:
     with st.spinner("Conectando con Spotify..."):
         try:
             spotify = get_spotify_client()
@@ -269,3 +274,11 @@ if st.button("Crear playlist en Spotify", type="primary"):
     if results["not_found"]:
         with st.expander("Canciones no encontradas"):
             st.code("\n".join(results["not_found"]))
+
+
+if st.button("Crear playlist en Spotify", type="primary"):
+    st.session_state["pending_create"] = True
+
+if st.session_state.get("pending_create"):
+    run_create_playlist()
+    st.session_state["pending_create"] = False
