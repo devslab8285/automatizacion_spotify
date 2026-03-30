@@ -66,6 +66,14 @@ def get_secret(name: str) -> str:
     return value
 
 
+def build_custom_playlist_name(label: str) -> str:
+    date_str = datetime.now().strftime("%d/%m/%y")
+    trimmed = " ".join(label.strip().split())[:8]
+    if trimmed:
+        return f"IAList {trimmed} {date_str}"
+    return f"IAList {date_str}"
+
+
 def clear_query_params() -> None:
     try:
         st.query_params.clear()
@@ -152,6 +160,12 @@ with st.sidebar:
         step=1,
         key="track_count",
     )
+    playlist_label = st.text_input(
+        "Nombre corto (max 8)",
+        max_chars=8,
+        key="playlist_label",
+        placeholder="temazos",
+    )
     st.caption("Si OpenAI falla, usamos songs.txt automaticamente.")
 
 
@@ -231,11 +245,7 @@ def run_create_playlist() -> None:
         if source == "Prompt (OpenAI)"
         else "Playlist generada desde archivo/lista/fallback."
     )
-    playlist_name = (
-        build_ai_playlist_name(prompt)
-        if source == "Prompt (OpenAI)" and prompt.strip()
-        else build_fallback_playlist_name()
-    )
+    playlist_name = build_custom_playlist_name(playlist_label)
 
     with st.spinner("Creando playlist y agregando canciones..."):
         try:
