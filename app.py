@@ -86,6 +86,7 @@ def get_spotify_client() -> spotipy.Spotify:
         redirect_uri=redirect_uri,
         scope=SCOPE,
         cache_handler=None,
+        show_dialog=True,
         open_browser=False,
     )
 
@@ -122,13 +123,15 @@ def get_spotify_client() -> spotipy.Spotify:
 
 with st.sidebar:
     st.subheader("Modo de generacion")
+    if st.button("Cambiar usuario de Spotify"):
+        st.session_state.pop("token_info", None)
+        clear_query_params()
+        st.rerun()
     source = st.radio(
         "Como quieres crear la lista?",
         [
-            "Prompt (OpenAI)",
             "Pegar lista",
             "Cargar archivo",
-            "Usar songs.txt (fallback)",
         ],
     )
     track_count = st.number_input(
