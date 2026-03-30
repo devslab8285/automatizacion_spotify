@@ -5,6 +5,7 @@ from typing import Iterable, List
 import spotipy
 import streamlit as st
 from spotipy.oauth2 import SpotifyOAuth
+from spotipy.cache_handler import CacheHandler
 
 from main import (
     SCOPE,
@@ -75,6 +76,14 @@ def clear_query_params() -> None:
             pass
 
 
+class NoCacheHandler(CacheHandler):
+    def get_cached_token(self):
+        return None
+
+    def save_token_to_cache(self, token_info):
+        return None
+
+
 def get_spotify_client() -> spotipy.Spotify:
     client_id = get_secret("SPOTIFY_CLIENT_ID")
     client_secret = get_secret("SPOTIFY_CLIENT_SECRET")
@@ -85,7 +94,7 @@ def get_spotify_client() -> spotipy.Spotify:
         client_secret=client_secret,
         redirect_uri=redirect_uri,
         scope=SCOPE,
-        cache_handler=None,
+        cache_handler=NoCacheHandler(),
         show_dialog=True,
         open_browser=False,
     )
@@ -201,6 +210,7 @@ if st.button("Crear playlist en Spotify", type="primary"):
         except Exception as exc:
             st.error(f"No se pudo conectar con Spotify: {exc}")
             st.stop()
+    st.info(f"Autenticado como: {user.get('display_name') or user.get('id')}")
 
     queries = build_queries()
     queries = dedupe_queries(queries)[:track_count]
