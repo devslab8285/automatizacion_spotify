@@ -161,11 +161,12 @@ with st.sidebar:
         key="track_count",
     )
     playlist_label = st.text_input(
-        "Nombre corto (max 8)",
+        "Nombre corto para la playlist (max 8)",
         max_chars=8,
         key="playlist_label",
         placeholder="temazos",
     )
+    st.caption("Nombre final: IAList <tu texto> <fecha>. Ej: IAList temazos 30/03/26")
     st.caption("Si OpenAI falla, usamos songs.txt automaticamente.")
 
 
